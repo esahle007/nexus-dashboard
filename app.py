@@ -28,6 +28,11 @@ def load_biometrics(days=90):
         bio_df, _ = generate(days=days)
         return bio_df, "synthetic"
 
+def hex_to_rgba(hex_color, alpha=0.2):
+    h = hex_color.lstrip("#")
+    r, g, b = int(h[0:2],16), int(h[2:4],16), int(h[4:6],16)
+    return f"rgba({r},{g},{b},{alpha})"
+
 st.set_page_config(page_title="Project Nexus", page_icon="🧬",
                    layout="wide", initial_sidebar_state="expanded")
 
@@ -145,7 +150,7 @@ with left_col:
     if not ctx_sub.empty:
         fig.add_trace(go.Bar(x=ctx_sub["impact_start"], y=ctx_sub["quantity"],
             name=selected_context.replace("_"," ").title(),
-            marker_color=CONTEXT_COLORS.get(selected_context,"#888"), opacity=0.35, yaxis="y2"))
+            marker_color=CONTEXT_COLORS.get(selected_context,"#888888"), opacity=0.35, yaxis="y2"))
     fig.update_layout(template="plotly_dark", paper_bgcolor="rgba(0,0,0,0)",
         plot_bgcolor="rgba(0,0,0,0)",
         yaxis=dict(title=selected_metric, gridcolor="#1f2937"),
@@ -176,12 +181,13 @@ st.markdown("##### Impact window decay model")
 iw = ImpactWindow.from_registry(selected_context)
 t_range = np.linspace(0, iw.window_hours, 200)
 weights = [iw.weight(t) for t in t_range]
-fig3 = go.Figure()
 ctx_color = CONTEXT_COLORS.get(selected_context, "#888888")
-fig3.add_trace(go.Scatter(x=t_range, y=weights, fill="tozeroy",
-    fillcolor="rgba({},{},{},0.2)".format(
-        int(ctx_color[1:3],16), int(ctx_color[3:5],16), int(ctx_color[5:7],16)),
-    line=dict(color=ctx_color, width=2)))
+fig3 = go.Figure()
+fig3.add_trace(go.Scatter(
+    x=t_range, y=weights, fill="tozeroy",
+    fillcolor=hex_to_rgba(ctx_color, 0.2),
+    line=dict(color=ctx_color, width=2)
+))
 if iw.peak_lag_hours > 0:
     fig3.add_vline(x=iw.peak_lag_hours, line_dash="dot",
         annotation_text=f"Peak @ {iw.peak_lag_hours}h", line_color="#9ca3af")
