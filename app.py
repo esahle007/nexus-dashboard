@@ -177,9 +177,11 @@ iw = ImpactWindow.from_registry(selected_context)
 t_range = np.linspace(0, iw.window_hours, 200)
 weights = [iw.weight(t) for t in t_range]
 fig3 = go.Figure()
+ctx_color = CONTEXT_COLORS.get(selected_context, "#888888")
 fig3.add_trace(go.Scatter(x=t_range, y=weights, fill="tozeroy",
-    fillcolor=CONTEXT_COLORS.get(selected_context,"#888")+"33",
-    line=dict(color=CONTEXT_COLORS.get(selected_context,"#888"), width=2)))
+    fillcolor="rgba({},{},{},0.2)".format(
+        int(ctx_color[1:3],16), int(ctx_color[3:5],16), int(ctx_color[5:7],16)),
+    line=dict(color=ctx_color, width=2)))
 if iw.peak_lag_hours > 0:
     fig3.add_vline(x=iw.peak_lag_hours, line_dash="dot",
         annotation_text=f"Peak @ {iw.peak_lag_hours}h", line_color="#9ca3af")
