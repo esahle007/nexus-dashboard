@@ -130,6 +130,13 @@ with result_col:
         with st.spinner("Analyzing your meal..."):
             analysis = fl.analyze_food_image(img_bytes, api_key)
 
+        # Surface any real API error immediately
+        if "_error" in analysis:
+            st.error(f"⚠️ Vision API error:\n\n`{analysis['_error']}`")
+            st.caption("Showing demo data below. Fix the error above and try again.")
+        else:
+            st.success("✓ Analyzed with Claude Vision!")
+
         st.session_state["last_analysis"] = analysis
         st.session_state["last_img"] = img_bytes
 
@@ -320,4 +327,3 @@ st.markdown(
     '<p style="color:#1f2937;font-size:0.7rem;text-align:center">'
     'Nexus · Food log · Powered by Claude Vision</p>',
     unsafe_allow_html=True)
-
