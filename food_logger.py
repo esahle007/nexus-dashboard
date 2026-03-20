@@ -57,7 +57,7 @@ def analyze_food_image(image_bytes: bytes, api_key: str) -> dict:
         b64 = base64.standard_b64encode(image_bytes).decode("utf-8")
 
         response = client.messages.create(
-            model="claude-3-haiku-20240307",
+            model="claude-haiku-4-5-20251001",
             max_tokens=1024,
             messages=[{
                 "role": "user",
