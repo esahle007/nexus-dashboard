@@ -84,8 +84,10 @@ def analyze_food_image(image_bytes: bytes, api_key: str) -> dict:
         return json.loads(raw.strip())
 
     except Exception as e:
-        # Return mock data so UI still works during development
-        return _mock_analysis(str(e))
+        # Return mock data but preserve full error for display
+        result = _mock_analysis(str(e))
+        result["_error"] = str(e)
+        return result
 
 
 def _mock_analysis(error_note: str = "") -> dict:
