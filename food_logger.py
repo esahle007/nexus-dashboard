@@ -272,3 +272,50 @@ def get_api_key() -> str:
     except Exception:
         pass
     return os.getenv("ANTHROPIC_API_KEY", "")
+
+
+# ── Food → Context signal converter ───────────────────────────────────────────
+
+def food_log_to_context_events(days: int = 30) -> "dict[str, list[dict]]":
+    """
+    Convert food_log entries into context event dicts for each food signal.
+    Returns a dict keyed by sub_type, each value a list of
+    {"timestamp": datetime, "quantity": float} dicts — same format
+    the CCF engine expects for caffeine/alcohol/etc.
+
+    Signal definitions:
+      high_sugar_meal  → quantity = total_sugar_g (normalised /50)
+      high_carb_meal   → quantity = total_carbs_g  (normalised /150)
+      late_meal        → quantity = 1.0 if meal after 20:00, else 0 (skipped)
+      total_calories   → quantity = total_calories / 800
+    """
+    import pandas as pd
+
+    df = load_food_log(days=days)
+    if df.empty:
+        return {k: [] for k in ["high_sugar_meal","high_carb_meal","late_meal","total_calories"]}
+
+    events: dict[str, list[dict]] = {
+        "high_sugar_meal": [],
+        "high_carb_meal":  [],
+        "late_meal":       [],
+        "total_calories":  [],
+    }
+
+    for _, row in df.iterrows():
+        ts      = row["logged_at"]
+        sugar   = float(row.get("total_sugar_g",  0) or 0)
+        carbs   = float(row.get("total_carbs_g",  0) or 0)
+        cals    = float(row.get("total_calories", 0) or 0)
+        hour    = ts.hour if hasattr(ts, "hour") else 12
+
+        if sugar > 5:
+            events["high_sugar_meal"].append({"timestamp": ts, "quantity": sugar / 50.0})
+        if carbs > 20:
+            events["high_carb_meal"].append({"timestamp": ts, "quantity": carbs / 150.0})
+        if hour >= 20:
+            events["late_meal"].append({"timestamp": ts, "quantity": 1.0})
+        if cals > 100:
+            events["total_calories"].append({"timestamp": ts, "quantity": cals / 800.0})
+
+    return events
