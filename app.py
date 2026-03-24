@@ -13,6 +13,11 @@ import plotly.graph_objects as go
 from datetime import datetime, timedelta, timezone
 
 import synthetic as _syn
+try:
+    import food_logger as _fl
+    _food_available = True
+except Exception:
+    _food_available = False
 import impact_windows as _iw
 
 generate                = _syn.generate
@@ -168,6 +173,11 @@ CONTEXT_META = {
     "social_conflict": {"icon":"⚡","label":"Stress",            "color":"#c084fc","bg":"rgba(192,132,252,0.1)"},
     "blue_light":      {"icon":"📱","label":"Screen Time",       "color":"#60a5fa","bg":"rgba(96,165,250,0.1)"},
     "morning_light":   {"icon":"🌅","label":"Morning Sunlight",  "color":"#34d399","bg":"rgba(52,211,153,0.1)"},
+    # Food signals
+    "high_sugar_meal": {"icon":"🍬","label":"High Sugar Meal",   "color":"#f472b6","bg":"rgba(244,114,182,0.1)"},
+    "high_carb_meal":  {"icon":"🍞","label":"High Carb Meal",    "color":"#fb923c","bg":"rgba(251,146,60,0.1)"},
+    "late_meal":       {"icon":"🌙","label":"Late Night Meal",   "color":"#a78bfa","bg":"rgba(167,139,250,0.1)"},
+    "total_calories":  {"icon":"🔥","label":"Daily Calories",    "color":"#fbbf24","bg":"rgba(251,191,36,0.1)"},
 }
 
 # ── Sidebar ────────────────────────────────────────────────────────────────────
@@ -219,6 +229,14 @@ def metric_stats(mk):
     avg30 = float(s30["value"].mean()) if len(s30) else None
     return last, avg30, s30
 
+# ── Load food signals from Supabase ──────────────────────────────────────────
+food_events: dict = {}
+if _food_available:
+    try:
+        food_events = _fl.food_log_to_context_events(days=30)
+    except Exception:
+        food_events = {}
+
 # ── Quick CCF for impact factors ───────────────────────────────────────────────
 def quick_ccf(sub_type, primary_metric="HRV"):
     bio = bio_df[bio_df["metric_type"]==primary_metric].sort_values("recorded_at")
@@ -228,8 +246,13 @@ def quick_ccf(sub_type, primary_metric="HRV"):
     lags_h = np.arange(0, iw.window_hours+1, 1.0)
     bio_ts = bio["recorded_at"].tolist()
     bio_v  = bio["value"].to_numpy(float)
-    events = [{"timestamp":r["impact_start"],"quantity":r["quantity"]}
-               for _,r in ctx_df[ctx_df["sub_type"]==sub_type].iterrows()]
+    # Food signals come from food_events dict; lifestyle signals from ctx_df
+    food_subs = ["high_sugar_meal","high_carb_meal","late_meal","total_calories"]
+    if sub_type in food_subs:
+        events = food_events.get(sub_type, [])
+    else:
+        events = [{"timestamp":r["impact_start"],"quantity":r["quantity"]}
+                   for _,r in ctx_df[ctx_df["sub_type"]==sub_type].iterrows()]
     if not events: return 0.0, 0.0
     best_r, best_lag = 0.0, 0.0
     for lag in lags_h:
