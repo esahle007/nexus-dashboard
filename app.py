@@ -194,7 +194,7 @@ with st.sidebar:
     log_qty  = st.slider("Amount / Intensity", 0.1, 3.0, 1.0, step=0.1,
                           help="1 = one cup of coffee, one drink, moderate stress, etc.")
     log_hour = st.slider("What time?", 0, 23, 8, format="%d:00")
-    if st.button("➕  Log this", use_container_width=True):
+    if st.button("➕  Log this", width="stretch"):
         st.session_state["logged_event"] = {
             "sub_type": selected_context, "quantity": log_qty, "hour": log_hour}
         meta = CONTEXT_META[selected_context]
@@ -236,6 +236,26 @@ if _food_available:
         food_events = _fl.food_log_to_context_events(days=30)
     except Exception:
         food_events = {}
+
+# ── Count real food log entries for data-needed indicator ────────────────────
+food_entry_counts = {}
+if _food_available:
+    try:
+        import food_logger as _fl2
+        _fdf = _fl2.load_food_log(days=30)
+        # Only count real entries (not synthetic — synthetic has no _error field)
+        _real = _fdf[~_fdf.get('notes', '').astype(str).str.contains('Demo data', na=False)] if not _fdf.empty else _fdf
+        food_entry_counts = {
+            'high_sugar_meal': int((_real.get('total_sugar_g', 0) > 5).sum()) if not _real.empty else 0,
+            'high_carb_meal':  int((_real.get('total_carbs_g', 0) > 20).sum()) if not _real.empty else 0,
+            'late_meal':       int((_real.get('logged_at', pd.Series()).apply(lambda x: x.hour >= 20 if hasattr(x,'hour') else False)).sum()) if not _real.empty else 0,
+            'total_calories':  int((_real.get('total_calories', 0) > 100).sum()) if not _real.empty else 0,
+        }
+    except Exception:
+        food_entry_counts = {}
+
+FOOD_SUBS = ['high_sugar_meal','high_carb_meal','late_meal','total_calories']
+MIN_FOOD_ENTRIES = 14  # entries needed for reliable correlation
 
 # ── Quick CCF for impact factors ───────────────────────────────────────────────
 def quick_ccf(sub_type, primary_metric="HRV"):
@@ -377,7 +397,7 @@ for col, mk in zip(spark_cols, list(METRICS.keys())):
                    tickfont=dict(size=9, color="#374151"),
                    tickformat=".0f"),
     )
-    col.plotly_chart(fig, use_container_width=True, config={"displayModeBar":False})
+    col.plotly_chart(fig, width="stretch", config={"displayModeBar":False})
 
 st.markdown("<div style='height:36px'></div>", unsafe_allow_html=True)
 
@@ -389,9 +409,19 @@ st.markdown('<p class="sec-label">What\'s been shaping your recovery</p>', unsaf
 _, avg30_hrv, _ = metric_stats("HRV")
 
 impact_data = []
+food_pending = []  # food signals that need more data
+
 for sub, meta in CONTEXT_META.items():
     r, lag = quick_ccf(sub, "HRV")
-    if abs(r) < 0.08:
+    is_food = sub in FOOD_SUBS
+    count   = food_entry_counts.get(sub, 0) if is_food else MIN_FOOD_ENTRIES
+
+    # Food signals with insufficient data go to pending list
+    if is_food and count < MIN_FOOD_ENTRIES:
+        food_pending.append((meta, count, MIN_FOOD_ENTRIES))
+        continue
+
+    if abs(r) < 0.05:
         continue
     direction   = "lowers" if r < 0 else "boosts"
     lag_txt     = f"effect shows up ~{lag:.0f}h later" if lag > 0.5 else "effect is immediate"
@@ -442,6 +472,32 @@ else:
         </p>
     </div>
     """, unsafe_allow_html=True)
+
+# ── Food signals awaiting enough data ────────────────────────────────────────
+if food_pending:
+    st.markdown("<div style='height:16px'></div>", unsafe_allow_html=True)
+    st.markdown('<p class="sec-label">Food insights — building up</p>', unsafe_allow_html=True)
+    fp_cols = st.columns(min(len(food_pending), 4), gap="medium")
+    for i, (meta, count, needed) in enumerate(food_pending):
+        pct = int(count / needed * 100)
+        remaining = needed - count
+        with fp_cols[i % 4]:
+            st.markdown(f"""
+            <div class="impact-wrap" style="opacity:0.75">
+                <div class="impact-top">
+                    <div class="impact-icon-wrap" style="background:{meta['bg']}">{meta['icon']}</div>
+                    <div>
+                        <div class="impact-name">{meta['label']}</div>
+                        <div class="impact-sub" style="color:#f59e0b">Needs {remaining} more logs</div>
+                    </div>
+                </div>
+                <div class="impact-body">Log {remaining} more {meta['label'].lower()} meals to unlock this insight.</div>
+                <div style="background:#1a1d26;border-radius:6px;height:6px;margin-bottom:8px;overflow:hidden">
+                    <div style="background:{meta['color']};width:{pct}%;height:100%;border-radius:6px;opacity:0.5"></div>
+                </div>
+                <span class="tag tag-neu">{count} / {needed} meals logged</span>
+            </div>
+            """, unsafe_allow_html=True)
 
 st.markdown("<div style='height:36px'></div>", unsafe_allow_html=True)
 
@@ -503,7 +559,7 @@ for tab, mk in zip(tabs, list(METRICS.keys())):
             height=300,
             showlegend=False,
         )
-        st.plotly_chart(fig, use_container_width=True,
+        st.plotly_chart(fig, width="stretch",
                         config={"displayModeBar": False})
 
         # Stat row below chart
