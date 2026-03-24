@@ -61,6 +61,27 @@ IMPACT_WINDOW_REGISTRY: dict[str, dict] = {
         "decay_model":    "ZEITGEBER",
         "peak_lag_hours":  0.0,
     },
+    # Food signals
+    "high_sugar_meal": {
+        "window_hours":   4.0,
+        "decay_model":    "EXPONENTIAL",
+        "peak_lag_hours":  0.5,
+    },
+    "high_carb_meal": {
+        "window_hours":   6.0,
+        "decay_model":    "LINEAR",
+        "peak_lag_hours":  1.0,
+    },
+    "late_meal": {
+        "window_hours":   8.0,
+        "decay_model":    "LOGARITHMIC",
+        "peak_lag_hours":  0.0,
+    },
+    "total_calories": {
+        "window_hours":   12.0,
+        "decay_model":    "LINEAR",
+        "peak_lag_hours":  2.0,
+    },
 }
 
 
